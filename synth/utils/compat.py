@@ -3,7 +3,7 @@
 @Author  : leeguandon@gmail.com
 '''
 try:
-    from mmcv.utils import Registry
+    from mmcv.utils import Registry, build_from_cfg
     from tenacity import retry
 
 

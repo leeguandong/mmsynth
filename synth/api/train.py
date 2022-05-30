@@ -49,7 +49,7 @@ def train_data(cfg, dataset):
 
 
 def generate_img(data_queue):
-    data = render()  # forward过程
+    data = render.forward()  # forward过程
     if data is not None:
         data_queue.put({"image": data[0], "label": data[1]})
 

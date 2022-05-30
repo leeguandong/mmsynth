@@ -6,8 +6,10 @@ from .utils import build, Registry
 
 RENDER = Registry('render')
 DATASET = Registry('dataset')
-CORPUS = Registry('corpus', parent=RENDER)
 MANAGER = Registry('manager')
+CORPUS = Registry('corpus', parent=RENDER)
+EFFECTS = Registry('effects')
+LAYOUT = Registry('layout')
 
 
 def build_dataset(cfg, default_args=None):
@@ -24,3 +26,11 @@ def build_corpus(cfg, default_args=None):
 
 def build_manager(cfg, default_args=None):
     return build(cfg, MANAGER, default_args)
+
+
+def build_effects(cfg, default_args=None):
+    return build(cfg, EFFECTS, default_args)
+
+
+def build_layout(cfg, default_args=None):
+    return build(cfg, LAYOUT, default_args)
