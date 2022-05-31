@@ -23,7 +23,6 @@ class FontManager:
         assert font_size[0] < font_size[1]
         self.font_dir = Path(font_dir)
         self.font_list_file = Path(font_list_file)
-        self.font_size = Path(font_list_file)
 
         self.font_size_min = font_size[0]
         self.font_size_max = font_size[1]

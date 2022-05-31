@@ -2,6 +2,7 @@
 @Time    : 2022/5/26 10:27
 @Author  : leeguandon@gmail.com
 '''
+import os
 from abc import abstractmethod
 from loguru import logger
 from pathlib import Path
@@ -13,10 +14,10 @@ from ..builder import build_manager
 class Corpus:
     def __init__(self,
                  font,
-                 text_paths,
-                 filter_by_chars,
-                 chars_file,
-                 text_color,
+                 text_paths=[],
+                 filter_by_chars=False,
+                 chars_file=None,
+                 text_color=None,
                  char_spacing=-1,
                  clip_length=-1,
                  horizontal=True,
@@ -24,7 +25,7 @@ class Corpus:
                  filter_font_min_support_chars=100,
                  ):
         self.text_paths = text_paths
-        self.chars_file = Path(chars_file)
+        self.chars_file = chars_file
         self.filter_by_chars = filter_by_chars
         self.clip_length = clip_length
         self.horizontal = horizontal
@@ -71,7 +72,7 @@ class Corpus:
         :param chars_file:
         :return:
         """
-        if chars_file is None or not chars_file.exists():
+        if chars_file is None or not os.path.exists(chars_file):
             raise PanicError(f"chars_file not exists: {chars_file}")
 
         chars = load_chars_file(chars_file, log=True)

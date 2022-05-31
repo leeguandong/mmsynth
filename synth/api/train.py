@@ -7,21 +7,24 @@ import cv2
 import time
 import numpy as np
 import multiprocessing
-from multiprocessing.context import Process
-from ..builder import build_render
+import os.path as osp
 from loguru import logger
+from multiprocessing.context import Process
+from ..builder import build_render, build_dataset
 
 cv2.setNumThreads(1)
 
 STOP_TOKEN = "kill"
 
 
-def train_data(cfg, dataset):
+def train_data(cfg):
     multiprocessing.set_start_method('spawn', force=True)
     manager = multiprocessing.Manager()
     data_queue = manager.Queue()
 
     for generator_cfg in cfg.generator_cfg:
+        dataset = build_dataset(cfg.data, default_args={'work_dir': osp.join(cfg.work_dir, generator_cfg.name)})
+
         db_writer_process = DBWriterProcess(
             dataset, data_queue, generator_cfg, cfg)
         db_writer_process.start()

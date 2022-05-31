@@ -3,7 +3,8 @@
 @Author  : leeguandon@gmail.com
 '''
 from .same_line import SameLineLayout
+from .extra_text_line import ExtraTextLineLayout
 
 __all__ = [
-    'SameLineLayout'
+    'SameLineLayout', 'ExtraTextLineLayout'
 ]

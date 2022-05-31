@@ -2,6 +2,7 @@
 @Time    : 2022/5/30 19:03
 @Author  : leeguandon@gmail.com
 '''
+from pathlib import Path
 from synth.utils import PanicError, random_choice
 from .base import Corpus
 from ..builder import CORPUS
@@ -10,7 +11,7 @@ from ..builder import CORPUS
 @CORPUS.register_module()
 class EnumCorpus(Corpus):
     def __init__(self,
-                 num_pick,
+                 num_pick=1,
                  items=None,
                  *args,
                  **kwargs):
@@ -32,7 +33,6 @@ class EnumCorpus(Corpus):
                 with open(str(text_path), "r", encoding="utf-8") as f:
                     for line in f.readlines():
                         self.texts.append(line.strip())
-
         elif len(self.items) != 0:
             self.texts = self.items
 

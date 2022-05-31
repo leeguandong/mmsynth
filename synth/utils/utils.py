@@ -86,7 +86,7 @@ def load_chars_file(chars_file, log=False):
 
     """
     assumed_space = False
-    with open(str(chars_file), "r", encoding="utf-8") as f:
+    with open(chars_file, "r", encoding="utf-8") as f:
         lines = f.readlines()
         _lines = []
         for i, line in enumerate(lines):

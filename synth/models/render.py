@@ -16,14 +16,16 @@ class Render:
     def __init__(self,
                  corpus,
                  height=32,
-                 corpus_effects=None,
+                 corpus_effects=[],
                  layout=None,
-                 layout_effects=None,
+                 layout_effects=[],
                  gray=True,
                  perspective_transform=None,
                  bg=None,
-                 render_effects=None,
-                 return_bg_and_mask=False):
+                 render_effects=[],
+                 return_bg_and_mask=False,
+                 *args,
+                 **kwargs):
         self.height = height
         self.corpus = corpus
         self.corpus_effects = corpus_effects

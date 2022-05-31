@@ -13,16 +13,16 @@ import os.path as osp
 from mmcv import Config
 from loguru import logger
 from synth.api import train_data
-from synth import build_dataset
 
-logger.add("../results/crnn_chn.log")
+work_dir = '../results'
+logger.add(osp.join(work_dir, osp.basename(work_dir) + '.log'))
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description="features")
-    parser.add_argument('--config', default="../configs/crnn/crnn_chn.py",
+    parser.add_argument('--config', default="../configs/example.py",
                         help='train config file path')
-    parser.add_argument('--work-dir', default="../results", help='the dir to save logs and models')
+    parser.add_argument('--work-dir', default=f"{work_dir}", help='the dir to save logs and models')
     parser.add_argument('--seed', type=int, default=2022, help='random seed')
     args = parser.parse_args()
     return args
@@ -47,8 +47,7 @@ def main():
     # init the logger before other steps
     logger.info(f'Config:\n{cfg.pretty_text}')
 
-    dataset = build_dataset(cfg.data, default_args={'work_dir': cfg.work_dir})
-    train_data(cfg, dataset)
+    train_data(cfg)
 
 
 if __name__ == "__main__":

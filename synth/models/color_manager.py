@@ -29,5 +29,5 @@ class ColorFixManager:
     def __init__(self, color):
         self.color = color
 
-    def get_color(self):
+    def get_color(self, bg_img=None):
         return self.color

@@ -6,5 +6,5 @@ from .img import ImgDataset
 from .lmdb import LmdbDataset
 
 __all__ = [
-    'ImgDataset', 'LmdbDataset'
+    'ImgDataset', 'LmdbDataset',
 ]

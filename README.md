@@ -2,45 +2,15 @@
 这个库的主要目的是合成数据，不是数据增强（在线数据增强和离线数据增强应该比较相似，除非在batch梯度上有操作，否则应该都差不多），
 期望是应用在两个维度，一个是文本字符数据集的生成，即crnn的数据，一个ps篡改数据生成。数据合成在很多情况下是解决视觉算法问题的重要手段。
 
+## 主要特性
+ - [x] 模块化设计，主要包括corpus/effects/layout和models模块，其中corpus是语料类，包括char/enum/rand/word
+ - [x] 丰富的特效，集成了[imgaug](https://github.com/aleju/imgaug)
+ - [x] 支持在合成图的不同阶段使用特效，一般是text_mask阶段和合成图阶段
+ - [x] 支持横竖文本生成
+ - [x] 在设计上保证了config的纯粹性，隔离模块和config，不在config中做初始化等操作
+ - [x] 对齐mm系列代码
 
-
-
-
-
-
-# Text Renderer
-
-
-
-Generate text line images for training deep learning OCR model (e.g. [CRNN](https://github.com/bgshih/crnn)). ![example](./image/example.gif)
-
-- [x] Modular design. You can easily add different components: [Corpus](https://oh-my-ocr.github.io/text_renderer/corpus/index.html), [Effect](https://oh-my-ocr.github.io/text_renderer/effect/index.html), [Layout](https://oh-my-ocr.github.io/text_renderer/layout/index.html).
-- [x] Integrate with [imgaug](https://github.com/aleju/imgaug), see [imgaug_example](https://github.com/oh-my-ocr/text_renderer/blob/master/example_data/example.py#L184) for usage.
-- [x] Support render multi corpus on image with different effects. [Layout](https://oh-my-ocr.github.io/text_renderer/layout/index.html) is responsible for the layout between multiple corpora
-- [x] Support apply effects on different stages of rendering process [corpus_effects](https://oh-my-ocr.github.io/text_renderer/config.html#text_renderer.config.RenderCfg), [layout_effects](https://oh-my-ocr.github.io/text_renderer/config.html#text_renderer.config.RenderCfg), [render_effects](https://oh-my-ocr.github.io/text_renderer/config.html#text_renderer.config.RenderCfg).
-- [x] Generate vertical text.
-- [x] Support generate `lmdb` dataset which compatible with [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR), see [Dataset](https://oh-my-ocr.github.io/text_renderer/dataset.html)
-- [x] A web font viewer.
-- [ ] Corpus sampler: helpful to perform character balance
-
-[Documentation](https://oh-my-ocr.github.io/text_renderer/index.html)
-
-## Run Example
-
-Run following command to generate images using example data:
-
-```bash
-git clone https://github.com/oh-my-ocr/text_renderer
-cd text_renderer
-python3 setup.py develop
-pip3 install -r docker/requirements.txt
-python3 main.py \
-    --config example_data/example.py \
-    --dataset img \
-    --num_processes 2 \
-    --log_period 10
-```
-
+## 文本输出
 The data is generated in the `example_data/output` directory. A `labels.json` file contains all annotations in follow format:
 ```json
 {
@@ -103,50 +73,183 @@ workspace
 ```
 
 ### Create config file
-Create a `config.py` file in `workspace` directory. One configuration file must have a `configs` variable, it's 
-a list of [GeneratorCfg](https://oh-my-ocr.github.io/text_renderer/config.html#text_renderer.config.GeneratorCfg). 
+Create a `config.py` file in `workspace` directory. One configuration file must have a `configs` variable
 
 The complete configuration file is as follows:
 ```python
-import os
-from pathlib import Path
+_base_ = [
+    './_base_/default_runtime.py',
+    './_base_/corpus/chn.py',
+    './_base_/corpus/enum.py',
+    './_base_/corpus/words.py',
+    './_base_/corpus/rand.py',
+    './_base_/layout.py',
+    './_base_/effects.py'
+]
 
-from text_renderer.effect import *
-from text_renderer.corpus import *
-from text_renderer.config import (
-    RenderCfg,
-    NormPerspectiveTransformCfg,
-    GeneratorCfg,
-    SimpleTextColorCfg,
+bg = dict(
+    type='BGManager',
+    bg_dir="E:/comprehensive_library/mmsynth/data/bg",  # bg是jpg，代码中会转rgba，若是png，则保证alpha通道是255
+    pre_load=True  # 将背景图加载到内存中
+)
+perspective_transform = dict(
+    type='NormPerspectiveTransform',
+    x=20,
+    y=20,
+    z=1.5,
+    scale=1,
+    fovy=50
+)
+enum_cropus = dict(
+    type='EnumCorpus',
+    items=['Hello! 你好！'],
+    text_color=dict(
+        type='ColorFixManager',
+        color=(255, 50, 0, 255)
+    ),
+    font=dict(
+        type='FontManager',
+        font_dir='E:/comprehensive_library/mmsynth/data/fonts',
+        font_list_file="E:/comprehensive_library/mmsynth/data/fonts_list/chn.txt",  # 要从font_dir中加载字体文件名，如果未提供，使用font_dir中所有字体
+        font_size=(30, 31),  # 字体大小,本意是提供一个范围，这种写法其实就是固定了30
+    )
 )
 
-CURRENT_DIR = Path(os.path.abspath(os.path.dirname(__file__)))
+render_chn = dict(  # 一组生成对象，
+    type='Render',
+    height=32,  # 字体的高度限制
+    render_effects=[{{_base_.Line}}],  # 作用在合成的图上,bg+text_mask
+    gray=True,
+    corpus={{_base_.chn_corpus}},  # corpus和corpus_effects要对齐，两者是一一对应的关系
+    corpus_effects=[  # 效果是作用在text_mask上的
+        {{_base_.Line}},
+        {{_base_.Padding}}],
+    # layout='',  # layout只在有多个语料时才设置，其实单语料也能设置
+    # layout_effects='',
+    bg=bg,
+    perspective_transform=perspective_transform,  # 作用在text_mask上
+    return_bg_and_mask=False  # 把文字和背景都返回
+)
 
+render_rand = dict(
+    type='Render',
+    height=32,  # 字体的高度限制
+    gray=True,
+    corpus={{_base_.rand_corpus}},  # corpus和corpus_effects要对齐，两者是一一对应的关系
+    bg=bg
+)
 
-def story_data():
-    return GeneratorCfg(
-        num_image=10,
-        save_dir=CURRENT_DIR / "output",
-        render_cfg=RenderCfg(
-            bg_dir=CURRENT_DIR / "bg",
-            height=32,
-            perspective_transform=NormPerspectiveTransformCfg(20, 20, 1.5),
-            corpus=WordCorpus(
-                WordCorpusCfg(
-                    text_paths=[CURRENT_DIR / "corpus" / "eng_text.txt"],
-                    font_dir=CURRENT_DIR / "font",
-                    font_size=(20, 30),
-                    num_word=(2, 3),
-                ),
-            ),
-            corpus_effects=Effects(Line(0.9, thickness=(2, 5))),
-            gray=False,
-            text_color_cfg=SimpleTextColorCfg(),
+render_enum = dict(
+    type='Render',
+    height=32,  # 字体的高度限制
+    gray=True,
+    corpus={{_base_.enum_corpus}},  # corpus和corpus_effects要对齐，两者是一一对应的关系
+    bg=bg
+)
+
+render_eng = dict(
+    type='Render',
+    height=32,  # 字体的高度限制
+    gray=True,
+    corpus={{_base_.words_corpus}},  # corpus和corpus_effects要对齐，两者是一一对应的关系
+    bg=bg
+)
+
+same_line = dict(
+    type='Render',
+    gray=True,
+    corpus=[{{_base_.chn_corpus}}, {{_base_.enum_corpus}}],
+    corpus_effects=[  # 效果是作用在text_mask上的,一一对应，如果不佳效果就置空list
+        [{{_base_.Line}}],
+        [{{_base_.Padding}}]],
+    layout={{_base_.SameLineLayout}},  # layout只在有多个语料时才设置，其实单语料也能设置
+    layout_effects=[
+        dict(
+            type='Line',
+            p=0.5,
+            color=(255, 50, 0, 255)  # 线的颜色
         ),
-    )
+    ],
+    bg=bg,
+    perspective_transform=perspective_transform,  # 作用在text_mask上
+    return_bg_and_mask=False  # 把文字和背景都返回
+)
 
+extra_text_line = dict(
+    type='Render',
+    corpus=[{{_base_.chn_corpus}}, {{_base_.chn_corpus}}],
+    corpus_effects=[[{{_base_.Padding}}], []],
+    layout={{_base_.ExtraTextLineLayout}},
+    layout_effects=[
+        dict(
+            type='Line',
+            p=1,
+            color=(255, 50, 0, 255)  # 线的颜色
+        ),
+    ],
+    bg=bg,
+    perspective_transform=perspective_transform,  # 作用在text_mask上
+    return_bg_and_mask=False  # 把文字和背景都返回
+)
 
-configs = [story_data()]
+imgaug_emboss = dict(
+    type='Render',
+    corpus={{_base_.chn_corpus}},
+    corpus_effects=[{{_base_.Padding}}, {{_base_.Emboss}}],
+    bg=bg,
+    return_bg_and_mask=False  # 把文字和背景都返回
+)
+
+curve = dict(
+    type='Render',
+    corpus=enum_cropus,
+    corpus_effects=[{{_base_.Padding}}, {{_base_.Curve}}],
+    bg=bg,
+    return_bg_and_mask=False  # 把文字和背景都返回
+)
+
+vertical_text = dict(
+    type='Render',
+    corpus={{_base_.chn_corpus}},
+    bg=bg
+)
+
+dropouthorizontal = dict(
+    type='Render',
+    corpus={{_base_.chn_corpus}},
+    corpus_effects=[{{_base_.DropoutHorizontal}}],
+    bg=bg,
+)
+
+bg_and_text_mask = dict(
+    type='Render',
+    height=48,  # 字体的高度限制
+    corpus=enum_cropus,
+    bg=bg,
+    perspective_transform=dict(
+        type='PerspectiveTransform',
+        x=30,
+        y=30,
+        z=1.5,
+        scale=1,
+        fovy=50
+    ),  # 作用在text_mask上
+    return_bg_and_mask=True  # 把文字和背景都返回
+)
+
+generator_cfg = [  # 配置多组不同形式的生成对象，同一组语料尽量配置多个生成组，效果更好
+    # render_chn,
+    # render_enum,
+    # render_eng,
+    # render_rand,
+    # same_line,
+    # extra_text_line,
+    # imgaug_emboss,
+    # bg_and_text_mask,
+    # curve,
+    # vertical_text,
+    dropouthorizontal
+]
 ```
 
 In the above configuration we have done the following things:
@@ -160,13 +263,6 @@ In the above configuration we have done the following things:
    - Generate color image. `gray=False`, `SimpleTextColorCfg()`
 4. Specifies font-related parameters: `font_size`, `font_dir`
 
-### Run 
-Run `main.py`, it only has 4 arguments:
-- config：Python config file path
-- dataset: Dataset format `img` or `lmdb`
-- num_processes: Number of processes used
-- log_period: Period of log printing. (0, 100)
-
 ## All Effect/Layout Examples
 
 Find all effect/layout config example at [link](https://github.com/oh-my-ocr/text_renderer/blob/master/example_data/effect_layout_example.py)
@@ -176,87 +272,31 @@ Find all effect/layout config example at [link](https://github.com/oh-my-ocr/tex
 
 |    | Name                                 | Example                                                                                                                                                                      |
 |---:|:-------------------------------------|:-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-|  0 | bg_and_text_mask                     | ![bg_and_text_mask.jpg](https://github.com/oh-my-ocr/text_renderer/raw/master/example_data/effect_layout_image/bg_and_text_mask.jpg)                                         |
-|  1 | char_spacing_compact                 | ![char_spacing_compact.jpg](https://github.com/oh-my-ocr/text_renderer/raw/master/example_data/effect_layout_image/char_spacing_compact.jpg)                                 |
-|  2 | char_spacing_large                   | ![char_spacing_large.jpg](https://github.com/oh-my-ocr/text_renderer/raw/master/example_data/effect_layout_image/char_spacing_large.jpg)                                     |
-|  3 | color_image                          | ![color_image.jpg](https://github.com/oh-my-ocr/text_renderer/raw/master/example_data/effect_layout_image/color_image.jpg)                                                   |
-|  4 | curve                                | ![curve.jpg](https://github.com/oh-my-ocr/text_renderer/raw/master/example_data/effect_layout_image/curve.jpg)                                                               |
-|  5 | dropout_horizontal                   | ![dropout_horizontal.jpg](https://github.com/oh-my-ocr/text_renderer/raw/master/example_data/effect_layout_image/dropout_horizontal.jpg)                                     |
-|  6 | dropout_rand                         | ![dropout_rand.jpg](https://github.com/oh-my-ocr/text_renderer/raw/master/example_data/effect_layout_image/dropout_rand.jpg)                                                 |
-|  7 | dropout_vertical                     | ![dropout_vertical.jpg](https://github.com/oh-my-ocr/text_renderer/raw/master/example_data/effect_layout_image/dropout_vertical.jpg)                                         |
-|  8 | emboss                               | ![emboss.jpg](https://github.com/oh-my-ocr/text_renderer/raw/master/example_data/effect_layout_image/emboss.jpg)                                                             |
-|  9 | extra_text_line_layout               | ![extra_text_line_layout.jpg](https://github.com/oh-my-ocr/text_renderer/raw/master/example_data/effect_layout_image/extra_text_line_layout.jpg)                             |
-| 10 | line_bottom                          | ![line_bottom.jpg](https://github.com/oh-my-ocr/text_renderer/raw/master/example_data/effect_layout_image/line_bottom.jpg)                                                   |
-| 11 | line_bottom_left                     | ![line_bottom_left.jpg](https://github.com/oh-my-ocr/text_renderer/raw/master/example_data/effect_layout_image/line_bottom_left.jpg)                                         |
-| 12 | line_bottom_right                    | ![line_bottom_right.jpg](https://github.com/oh-my-ocr/text_renderer/raw/master/example_data/effect_layout_image/line_bottom_right.jpg)                                       |
-| 13 | line_horizontal_middle               | ![line_horizontal_middle.jpg](https://github.com/oh-my-ocr/text_renderer/raw/master/example_data/effect_layout_image/line_horizontal_middle.jpg)                             |
-| 14 | line_left                            | ![line_left.jpg](https://github.com/oh-my-ocr/text_renderer/raw/master/example_data/effect_layout_image/line_left.jpg)                                                       |
-| 15 | line_right                           | ![line_right.jpg](https://github.com/oh-my-ocr/text_renderer/raw/master/example_data/effect_layout_image/line_right.jpg)                                                     |
-| 16 | line_top                             | ![line_top.jpg](https://github.com/oh-my-ocr/text_renderer/raw/master/example_data/effect_layout_image/line_top.jpg)                                                         |
-| 17 | line_top_left                        | ![line_top_left.jpg](https://github.com/oh-my-ocr/text_renderer/raw/master/example_data/effect_layout_image/line_top_left.jpg)                                               |
-| 18 | line_top_right                       | ![line_top_right.jpg](https://github.com/oh-my-ocr/text_renderer/raw/master/example_data/effect_layout_image/line_top_right.jpg)                                             |
-| 19 | line_vertical_middle                 | ![line_vertical_middle.jpg](https://github.com/oh-my-ocr/text_renderer/raw/master/example_data/effect_layout_image/line_vertical_middle.jpg)                                 |
-| 20 | padding                              | ![padding.jpg](https://github.com/oh-my-ocr/text_renderer/raw/master/example_data/effect_layout_image/padding.jpg)                                                           |
-| 21 | perspective_transform                | ![perspective_transform.jpg](https://github.com/oh-my-ocr/text_renderer/raw/master/example_data/effect_layout_image/perspective_transform.jpg)                               |
-| 22 | same_line_layout_different_font_size | ![same_line_layout_different_font_size.jpg](https://github.com/oh-my-ocr/text_renderer/raw/master/example_data/effect_layout_image/same_line_layout_different_font_size.jpg) |
-| 23 | vertical_text                        | ![vertical_text.jpg](https://github.com/oh-my-ocr/text_renderer/raw/master/example_data/effect_layout_image/vertical_text.jpg)                                               |
+|  0 | bg_and_text_mask                     | ![bg_and_text_mask.jpg](./data/effect_layout_image/bg_and_text_mask.jpg)                                         |
+|  1 | char_spacing_compact                 | ![char_spacing_compact.jpg](./data/effect_layout_image/char_spacing_compact.jpg)                                 |
+|  2 | char_spacing_large                   | ![char_spacing_large.jpg](./data/effect_layout_image/char_spacing_large.jpg)                                     |
+|  3 | color_image                          | ![color_image.jpg](./data/effect_layout_image/color_image.jpg)                                                   |
+|  4 | curve                                | ![curve.jpg](./data/effect_layout_image/curve.jpg)                                                               |
+|  5 | dropout_horizontal                   | ![dropout_horizontal.jpg](./data/effect_layout_image/dropout_horizontal.jpg)                                     |
+|  6 | dropout_rand                         | ![dropout_rand.jpg](./data/effect_layout_image/dropout_rand.jpg)                                                 |
+|  7 | dropout_vertical                     | ![dropout_vertical.jpg](./data/effect_layout_image/dropout_vertical.jpg)                                         |
+|  8 | emboss                               | ![emboss.jpg](./data/effect_layout_image/emboss.jpg)                                                             |
+|  9 | extra_text_line_layout               | ![extra_text_line_layout.jpg](./data/effect_layout_image/extra_text_line_layout.jpg)                             |
+| 10 | line_bottom                          | ![line_bottom.jpg](./data/effect_layout_image/line_bottom.jpg)                                                   |
+| 11 | line_bottom_left                     | ![line_bottom_left.jpg](./data/effect_layout_image/line_bottom_left.jpg)                                         |
+| 12 | line_bottom_right                    | ![line_bottom_right.jpg](./data/effect_layout_image/line_bottom_right.jpg)                                       |
+| 13 | line_horizontal_middle               | ![line_horizontal_middle.jpg](./data/effect_layout_image/line_horizontal_middle.jpg)                             |
+| 14 | line_left                            | ![line_left.jpg](./data/effect_layout_image/line_left.jpg)                                                       |
+| 15 | line_right                           | ![line_right.jpg](./data/effect_layout_image/line_right.jpg)                                                     |
+| 16 | line_top                             | ![line_top.jpg](./data/effect_layout_image/line_top.jpg)                                                         |
+| 17 | line_top_left                        | ![line_top_left.jpg](./data/effect_layout_image/line_top_left.jpg)                                               |
+| 18 | line_top_right                       | ![line_top_right.jpg](./data/effect_layout_image/line_top_right.jpg)                                             |
+| 19 | line_vertical_middle                 | ![line_vertical_middle.jpg](./data/effect_layout_image/line_vertical_middle.jpg)                                 |
+| 20 | padding                              | ![padding.jpg](./data/effect_layout_image/padding.jpg)                                                           |
+| 21 | perspective_transform                | ![perspective_transform.jpg](./data/effect_layout_image/perspective_transform.jpg)                               |
+| 22 | same_line_layout_different_font_size | ![same_line_layout_different_font_size.jpg](./data/effect_layout_image/same_line_layout_different_font_size.jpg) |
+| 23 | vertical_text                        | ![vertical_text.jpg](./data/effect_layout_image/vertical_text.jpg)                                               |
 
 
-## Contribution
-Setup [Commitizen](http://commitizen.github.io/cz-cli/) for commit message
-
-- Corpus: Feel free to contribute more corpus generators to the project, 
-  It does not necessarily need to be a generic corpus generator, but can also be a business-specific generator, 
-  such as generating ID numbers
-
-
-## Run in Docker
-
-Build image
-
-```bash
-docker build -f docker/Dockerfile -t text_renderer .
-```
-
-Config file is provided by `CONFIG` environment.
-In `example.py` file, data is generated in `example_data/output` directory,
-so we map this directory to the host.
-
-```bash
-docker run --rm \
--v `pwd`/example_data/docker_output/:/app/example_data/output \
---env CONFIG=/app/example_data/example.py \
---env DATASET=img \
---env NUM_PROCESSES=2 \
---env LOG_PERIOD=10 \
-text_renderer
-```
-
-## Font Viewer
-Start font viewer
-
-```bash
-streamlit run tools/font_viewer.py -- web /path/to/fonts_dir
-```
-![image](./image/font_viewer.png)
-
-## Build docs
-
-```bash
-cd docs
-make html
-open _build/html/index.html
-```
-
-
-## Citing text_renderer
-If you use text_renderer in your research, please consider use the following BibTeX entry.
-
-```BibTeX
-@misc{text_renderer,
-  author =       {oh-my-ocr},
-  title =        {text_renderer},
-  howpublished = {\url{https://github.com/oh-my-ocr/text_renderer}},
-  year =         {2021}
-}
-```
+## Reference
+https://oh-my-ocr.github.io/text_renderer
